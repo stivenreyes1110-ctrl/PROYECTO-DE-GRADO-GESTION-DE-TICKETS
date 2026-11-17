@@ -1,0 +1,715 @@
+/*==============================================================================
+  MESA DE AYUDA MULTISERVICIO
+  SQL Server - Creacion de tablas, relaciones, indices y parametros de endpoints
+
+  Generado a partir de los endpoints montados en IntranetBk/index.js.
+
+  IMPORTANTE:
+  1. Revisar nombres y tipos contra la base existente antes de ejecutar.
+  2. El script no elimina ni renombra objetos existentes.
+  3. Las tablas se crean solamente cuando no existen.
+  4. ARCHIVO_URL admite hasta 1000 caracteres. El controlador actual genera
+     una URL completa; para la arquitectura objetivo se recomienda migrarlo
+     posteriormente a una ruta relativa /uploads/... sin cambiar esta tabla.
+==============================================================================*/
+
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+GO
+
+/*==============================================================================
+  1. CATALOGOS PRINCIPALES
+==============================================================================*/
+
+IF OBJECT_ID('dbo.ROLESMESA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.ROLESMESA (
+        ID      INT          NOT NULL,
+        NOMBRE  VARCHAR(50)  NOT NULL,
+        CONSTRAINT PK_ROLESMESA PRIMARY KEY (ID),
+        CONSTRAINT UQ_ROLESMESA_NOMBRE UNIQUE (NOMBRE)
+    );
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.ROLESMESA WHERE ID = 1)
+    INSERT INTO dbo.ROLESMESA (ID, NOMBRE) VALUES (1, 'ADMIN');
+IF NOT EXISTS (SELECT 1 FROM dbo.ROLESMESA WHERE ID = 2)
+    INSERT INTO dbo.ROLESMESA (ID, NOMBRE) VALUES (2, 'SOPORTE');
+IF NOT EXISTS (SELECT 1 FROM dbo.ROLESMESA WHERE ID = 3)
+    INSERT INTO dbo.ROLESMESA (ID, NOMBRE) VALUES (3, 'USUARIO');
+GO
+
+IF OBJECT_ID('dbo.MESASAYUDA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.MESASAYUDA (
+        ID      INT IDENTITY(1,1) NOT NULL,
+        NOMBRE  VARCHAR(100)      NOT NULL,
+        ESTADO  BIT               NOT NULL
+            CONSTRAINT DF_MESASAYUDA_ESTADO DEFAULT (1),
+        CONSTRAINT PK_MESASAYUDA PRIMARY KEY (ID),
+        CONSTRAINT UQ_MESASAYUDA_NOMBRE UNIQUE (NOMBRE)
+    );
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.MESASAYUDA WHERE ID = 1)
+BEGIN
+    SET IDENTITY_INSERT dbo.MESASAYUDA ON;
+    INSERT INTO dbo.MESASAYUDA (ID, NOMBRE) VALUES (1, 'TIC');
+    SET IDENTITY_INSERT dbo.MESASAYUDA OFF;
+END;
+IF NOT EXISTS (SELECT 1 FROM dbo.MESASAYUDA WHERE ID = 2)
+BEGIN
+    SET IDENTITY_INSERT dbo.MESASAYUDA ON;
+    INSERT INTO dbo.MESASAYUDA (ID, NOMBRE) VALUES (2, 'BIOMEDICA');
+    SET IDENTITY_INSERT dbo.MESASAYUDA OFF;
+END;
+IF NOT EXISTS (SELECT 1 FROM dbo.MESASAYUDA WHERE ID = 3)
+BEGIN
+    SET IDENTITY_INSERT dbo.MESASAYUDA ON;
+    INSERT INTO dbo.MESASAYUDA (ID, NOMBRE) VALUES (3, 'MANTENIMIENTO');
+    SET IDENTITY_INSERT dbo.MESASAYUDA OFF;
+END;
+GO
+
+IF OBJECT_ID('dbo.SEDESCLB', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SEDESCLB (
+        ID      INT IDENTITY(1,1) NOT NULL,
+        NOMBRE  VARCHAR(150)      NOT NULL,
+        ESTADO  BIT               NOT NULL
+            CONSTRAINT DF_SEDESCLB_ESTADO DEFAULT (1),
+        CONSTRAINT PK_SEDESCLB PRIMARY KEY (ID),
+        CONSTRAINT UQ_SEDESCLB_NOMBRE UNIQUE (NOMBRE)
+    );
+END;
+GO
+
+IF OBJECT_ID('dbo.AREASCLB', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.AREASCLB (
+        ID      INT IDENTITY(1,1) NOT NULL,
+        NOMBRE  VARCHAR(150)      NOT NULL,
+        PISO    VARCHAR(50)       NULL,
+        IDSEDE  INT               NOT NULL,
+        ESTADO  BIT               NOT NULL
+            CONSTRAINT DF_AREASCLB_ESTADO DEFAULT (1),
+        CONSTRAINT PK_AREASCLB PRIMARY KEY (ID),
+        CONSTRAINT UQ_AREASCLB_ID_SEDE UNIQUE (ID, IDSEDE),
+        CONSTRAINT UQ_AREASCLB_NOMBRE_SEDE UNIQUE (NOMBRE, IDSEDE),
+        CONSTRAINT FK_AREASCLB_SEDE FOREIGN KEY (IDSEDE)
+            REFERENCES dbo.SEDESCLB (ID)
+    );
+END;
+GO
+
+IF OBJECT_ID('dbo.INCIDENTESMESA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.INCIDENTESMESA (
+        ID      INT IDENTITY(1,1) NOT NULL,
+        NOMBRE  VARCHAR(200)      NOT NULL,
+        IDMESA  INT               NULL,
+        ESTADO  BIT               NOT NULL
+            CONSTRAINT DF_INCIDENTESMESA_ESTADO DEFAULT (1),
+        CONSTRAINT PK_INCIDENTESMESA PRIMARY KEY (ID),
+        CONSTRAINT FK_INCIDENTESMESA_MESA FOREIGN KEY (IDMESA)
+            REFERENCES dbo.MESASAYUDA (ID)
+    );
+END;
+GO
+
+/*==============================================================================
+  2. USUARIOS Y AUTORIZACION POR MESA
+==============================================================================*/
+
+IF OBJECT_ID('dbo.USUARIOSMESA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.USUARIOSMESA (
+        ID          INT IDENTITY(1,1) NOT NULL,
+        NOMBRE      VARCHAR(200)      NOT NULL,
+        USUARIO     VARCHAR(100)      NOT NULL,
+        CONTRASENA  CHAR(64)          NOT NULL,
+        ESTADO      BIT               NOT NULL
+            CONSTRAINT DF_USUARIOSMESA_ESTADO DEFAULT (1),
+        IDROL       INT               NOT NULL
+            CONSTRAINT DF_USUARIOSMESA_IDROL DEFAULT (3),
+        CONSTRAINT PK_USUARIOSMESA PRIMARY KEY (ID),
+        CONSTRAINT UQ_USUARIOSMESA_USUARIO UNIQUE (USUARIO),
+        CONSTRAINT FK_USUARIOSMESA_ROL FOREIGN KEY (IDROL)
+            REFERENCES dbo.ROLESMESA (ID)
+    );
+END;
+GO
+
+IF OBJECT_ID('dbo.SOPORTESMESA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SOPORTESMESA (
+        ID         INT IDENTITY(1,1) NOT NULL,
+        IDUSUARIO  INT               NOT NULL,
+        IDMESA     INT               NOT NULL,
+        IDROL      INT               NOT NULL,
+        ESTADO     BIT               NOT NULL
+            CONSTRAINT DF_SOPORTESMESA_ESTADO DEFAULT (1),
+        CONSTRAINT PK_SOPORTESMESA PRIMARY KEY (ID),
+        CONSTRAINT UQ_SOPORTESMESA_USUARIO_MESA UNIQUE (IDUSUARIO, IDMESA),
+        CONSTRAINT UQ_SOPORTESMESA_ID_MESA UNIQUE (ID, IDMESA),
+        CONSTRAINT CK_SOPORTESMESA_ROL CHECK (IDROL IN (1, 2)),
+        CONSTRAINT FK_SOPORTESMESA_USUARIO FOREIGN KEY (IDUSUARIO)
+            REFERENCES dbo.USUARIOSMESA (ID),
+        CONSTRAINT FK_SOPORTESMESA_MESA FOREIGN KEY (IDMESA)
+            REFERENCES dbo.MESASAYUDA (ID),
+        CONSTRAINT FK_SOPORTESMESA_ROL FOREIGN KEY (IDROL)
+            REFERENCES dbo.ROLESMESA (ID)
+    );
+END;
+GO
+
+/*==============================================================================
+  3. SOLICITUD, GESTION Y ADMINISTRACION DE TICKETS
+==============================================================================*/
+
+IF OBJECT_ID('dbo.TICKETSMESA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.TICKETSMESA (
+        ID                INT IDENTITY(1,1) NOT NULL,
+        IDINCIDENTE       INT               NOT NULL,
+        IDAREA            INT               NOT NULL,
+        IDSEDE            INT               NOT NULL,
+        PRIORIDAD         VARCHAR(30)       NOT NULL,
+        DESCRIPCION       VARCHAR(999)      NOT NULL,
+        UBICACIONFISICA   VARCHAR(500)      NULL,
+        ESTADO            TINYINT           NOT NULL
+            CONSTRAINT DF_TICKETSMESA_ESTADO DEFAULT (1),
+        DIRIP             VARCHAR(100)      NULL,
+        IDUSUARIO         INT               NOT NULL,
+        IDMESA            INT               NOT NULL,
+        IDSOPORTE         INT               NULL,
+        CONTESTACION      NVARCHAR(2000)    NULL,
+        HORAREGISTRO      DATETIME2(0)      NOT NULL
+            CONSTRAINT DF_TICKETSMESA_HORAREGISTRO DEFAULT (SYSDATETIME()),
+        HORACIERRE        DATETIME2(0)      NULL,
+        ARCHIVO_URL       VARCHAR(1000)     NULL,
+        CONSTRAINT PK_TICKETSMESA PRIMARY KEY (ID),
+        CONSTRAINT CK_TICKETSMESA_ESTADO CHECK (ESTADO IN (1, 2, 3, 4)),
+        CONSTRAINT CK_TICKETSMESA_PRIORIDAD
+            CHECK (PRIORIDAD IN ('BAJA', 'MEDIA', 'ALTA')),
+        CONSTRAINT FK_TICKETSMESA_INCIDENTE FOREIGN KEY (IDINCIDENTE)
+            REFERENCES dbo.INCIDENTESMESA (ID),
+        CONSTRAINT FK_TICKETSMESA_AREA_SEDE FOREIGN KEY (IDAREA, IDSEDE)
+            REFERENCES dbo.AREASCLB (ID, IDSEDE),
+        CONSTRAINT FK_TICKETSMESA_USUARIO FOREIGN KEY (IDUSUARIO)
+            REFERENCES dbo.USUARIOSMESA (ID),
+        CONSTRAINT FK_TICKETSMESA_MESA FOREIGN KEY (IDMESA)
+            REFERENCES dbo.MESASAYUDA (ID),
+        CONSTRAINT FK_TICKETSMESA_SOPORTE_MESA FOREIGN KEY (IDSOPORTE, IDMESA)
+            REFERENCES dbo.SOPORTESMESA (ID, IDMESA)
+    );
+END;
+GO
+
+/* Indice principal para Solicitud:
+   WHERE IDUSUARIO = @IDUSUARIO AND IDMESA = @IDMESA [AND ESTADO = @ESTADO]
+   ORDER BY ID DESC */
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_TICKETSMESA_USUARIO_MESA_ESTADO_ID'
+      AND object_id = OBJECT_ID('dbo.TICKETSMESA')
+)
+BEGIN
+    CREATE INDEX IX_TICKETSMESA_USUARIO_MESA_ESTADO_ID
+        ON dbo.TICKETSMESA (IDUSUARIO, IDMESA, ESTADO, ID DESC)
+        INCLUDE (
+            IDINCIDENTE, IDAREA, IDSEDE, PRIORIDAD,
+            HORAREGISTRO, HORACIERRE, IDSOPORTE
+        );
+END;
+GO
+
+/* Indice principal para Gestion:
+   WHERE IDMESA = @IDMESA AND IDSOPORTE = @IDSOPORTE [AND ESTADO = @ESTADO] */
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_TICKETSMESA_MESA_SOPORTE_ESTADO_ID'
+      AND object_id = OBJECT_ID('dbo.TICKETSMESA')
+)
+BEGIN
+    CREATE INDEX IX_TICKETSMESA_MESA_SOPORTE_ESTADO_ID
+        ON dbo.TICKETSMESA (IDMESA, IDSOPORTE, ESTADO, ID DESC)
+        INCLUDE (
+            IDUSUARIO, IDINCIDENTE, IDAREA, IDSEDE,
+            PRIORIDAD, HORAREGISTRO, HORACIERRE
+        );
+END;
+GO
+
+/* Indice principal para Administracion:
+   WHERE IDMESA = @IDMESA [AND ESTADO = @ESTADO] ORDER BY ID DESC */
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_TICKETSMESA_MESA_ESTADO_ID'
+      AND object_id = OBJECT_ID('dbo.TICKETSMESA')
+)
+BEGIN
+    CREATE INDEX IX_TICKETSMESA_MESA_ESTADO_ID
+        ON dbo.TICKETSMESA (IDMESA, ESTADO, ID DESC)
+        INCLUDE (
+            IDUSUARIO, IDSOPORTE, IDINCIDENTE, IDAREA,
+            IDSEDE, PRIORIDAD, HORAREGISTRO, HORACIERRE
+        );
+END;
+GO
+
+/*==============================================================================
+  4. INVENTARIO Y MANTENIMIENTOS
+==============================================================================*/
+
+IF OBJECT_ID('dbo.INVENTARIOSMESA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.INVENTARIOSMESA (
+        ID                    INT IDENTITY(1,1) NOT NULL,
+        NUMEROSERIE           VARCHAR(100)      NULL,
+        CATEGORIA             VARCHAR(100)      NOT NULL,
+        MARCA                 VARCHAR(100)      NULL,
+        MODELO                VARCHAR(100)      NULL,
+        PLACA                 VARCHAR(50)       NULL,
+        DESCRIPCIONUBICACION  VARCHAR(MAX)      NULL,
+        IDAREA                INT               NOT NULL,
+        IDSEDE                INT               NOT NULL,
+        IDMESA                INT               NOT NULL,
+        FECHAREGISTRO         DATETIME2(0)      NOT NULL
+            CONSTRAINT DF_INVENTARIOSMESA_FECHAREGISTRO DEFAULT (SYSDATETIME()),
+        CONSTRAINT PK_INVENTARIOSMESA PRIMARY KEY (ID),
+        CONSTRAINT FK_INVENTARIOSMESA_AREA_SEDE FOREIGN KEY (IDAREA, IDSEDE)
+            REFERENCES dbo.AREASCLB (ID, IDSEDE),
+        CONSTRAINT FK_INVENTARIOSMESA_MESA FOREIGN KEY (IDMESA)
+            REFERENCES dbo.MESASAYUDA (ID)
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_INVENTARIOSMESA_MESA_SEDE_AREA'
+      AND object_id = OBJECT_ID('dbo.INVENTARIOSMESA')
+)
+BEGIN
+    CREATE INDEX IX_INVENTARIOSMESA_MESA_SEDE_AREA
+        ON dbo.INVENTARIOSMESA (IDMESA, IDSEDE, IDAREA, ID DESC)
+        INCLUDE (CATEGORIA, PLACA, MARCA, MODELO);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'UX_INVENTARIOSMESA_PLACA'
+      AND object_id = OBJECT_ID('dbo.INVENTARIOSMESA')
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_INVENTARIOSMESA_PLACA
+        ON dbo.INVENTARIOSMESA (PLACA)
+        WHERE PLACA IS NOT NULL;
+END;
+GO
+
+IF OBJECT_ID('dbo.MANTENIMIENTOSMESA', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.MANTENIMIENTOSMESA (
+        ID                 INT IDENTITY(1,1) NOT NULL,
+        IDACTIVO           INT               NOT NULL,
+        TIPOMANTENIMIENTO  VARCHAR(50)       NOT NULL,
+        FECHA              DATETIME2(0)      NOT NULL,
+        DESCRIPCION        VARCHAR(MAX)      NULL,
+        DIAGNOSTICO        VARCHAR(MAX)      NULL,
+        SOLUCION           VARCHAR(MAX)      NULL,
+        RESPONSABLE        VARCHAR(100)      NULL,
+        ESTADO             VARCHAR(30)       NOT NULL
+            CONSTRAINT DF_MANTENIMIENTOSMESA_ESTADO DEFAULT ('FINALIZADO'),
+        FECHAREGISTRO      DATETIME2(0)      NOT NULL
+            CONSTRAINT DF_MANTENIMIENTOSMESA_FECHAREGISTRO DEFAULT (SYSDATETIME()),
+        CONSTRAINT PK_MANTENIMIENTOSMESA PRIMARY KEY (ID),
+        CONSTRAINT FK_MANTENIMIENTOSMESA_ACTIVO FOREIGN KEY (IDACTIVO)
+            REFERENCES dbo.INVENTARIOSMESA (ID)
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_MANTENIMIENTOSMESA_ACTIVO_FECHA'
+      AND object_id = OBJECT_ID('dbo.MANTENIMIENTOSMESA')
+)
+BEGIN
+    CREATE INDEX IX_MANTENIMIENTOSMESA_ACTIVO_FECHA
+        ON dbo.MANTENIMIENTOSMESA (IDACTIVO, FECHA DESC)
+        INCLUDE (TIPOMANTENIMIENTO, ESTADO, RESPONSABLE);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_MANTENIMIENTOSMESA_FECHA_ESTADO'
+      AND object_id = OBJECT_ID('dbo.MANTENIMIENTOSMESA')
+)
+BEGIN
+    CREATE INDEX IX_MANTENIMIENTOSMESA_FECHA_ESTADO
+        ON dbo.MANTENIMIENTOSMESA (FECHA DESC, ESTADO)
+        INCLUDE (IDACTIVO, TIPOMANTENIMIENTO);
+END;
+GO
+
+/*==============================================================================
+  5. RESPONSABILIDADES
+==============================================================================*/
+
+IF OBJECT_ID('dbo.RESPONSABILIDADES', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.RESPONSABILIDADES (
+        ID             INT IDENTITY(1,1) NOT NULL,
+        DESCRIPCION    VARCHAR(500)      NOT NULL,
+        IDAREA         INT               NOT NULL,
+        IDSOPORTE      INT               NOT NULL,
+        FECHAINICIO    DATE              NOT NULL,
+        FECHAFIN       DATE              NOT NULL,
+        IDMESA         INT               NOT NULL,
+        ESTADO         VARCHAR(30)       NOT NULL
+            CONSTRAINT DF_RESPONSABILIDADES_ESTADO DEFAULT ('PENDIENTE'),
+        PORCENTAJE     TINYINT           NOT NULL
+            CONSTRAINT DF_RESPONSABILIDADES_PORCENTAJE DEFAULT (0),
+        FECHAREGISTRO  DATETIME2(0)      NOT NULL
+            CONSTRAINT DF_RESPONSABILIDADES_FECHAREGISTRO DEFAULT (SYSDATETIME()),
+        CONSTRAINT PK_RESPONSABILIDADES PRIMARY KEY (ID),
+        CONSTRAINT CK_RESPONSABILIDADES_FECHAS CHECK (FECHAFIN >= FECHAINICIO),
+        CONSTRAINT CK_RESPONSABILIDADES_PORCENTAJE CHECK (PORCENTAJE BETWEEN 0 AND 100),
+        CONSTRAINT FK_RESPONSABILIDADES_AREA FOREIGN KEY (IDAREA)
+            REFERENCES dbo.AREASCLB (ID),
+        CONSTRAINT FK_RESPONSABILIDADES_SOPORTE_MESA FOREIGN KEY (IDSOPORTE, IDMESA)
+            REFERENCES dbo.SOPORTESMESA (ID, IDMESA),
+        CONSTRAINT FK_RESPONSABILIDADES_MESA FOREIGN KEY (IDMESA)
+            REFERENCES dbo.MESASAYUDA (ID)
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_RESPONSABILIDADES_MESA_FECHAS'
+      AND object_id = OBJECT_ID('dbo.RESPONSABILIDADES')
+)
+BEGIN
+    CREATE INDEX IX_RESPONSABILIDADES_MESA_FECHAS
+        ON dbo.RESPONSABILIDADES (IDMESA, FECHAINICIO, FECHAFIN, ID DESC)
+        INCLUDE (IDAREA, IDSOPORTE, ESTADO, PORCENTAJE);
+END;
+GO
+
+/*==============================================================================
+  6. PARAMETROS UTILIZADOS POR LOS ENDPOINTS
+
+  Los valores idUsuario, idMesa, idRol e idSoporte marcados como "JWT" deben
+  obtenerse del token validado. No deben aceptarse desde el cliente.
+==============================================================================*/
+
+/*
+POST /api/login
+BODY:
+  @usuario   VARCHAR(100)  obligatorio
+  @password  VARCHAR       obligatorio; Node calcula SHA-256 hexadecimal
+  @mesa      INT           obligatorio
+
+CONSULTA DE ACCESO:
+  USUARIOSMESA.USUARIO = @usuario
+  LEFT JOIN SOPORTESMESA por IDUSUARIO + IDMESA
+
+ROL EFECTIVO:
+  SOPORTESMESA.IDROL 1 = ADMIN
+  SOPORTESMESA.IDROL 2 = SOPORTE
+  Sin relacion en la mesa = USUARIO (rol 3)
+*/
+
+/*
+GET /api/solicitudes-soporte
+JWT:
+  @IDUSUARIO INT
+  @IDMESA    INT
+QUERY:
+  @pagina        INT            defecto 1
+  @limite        INT            defecto 10; maximo 100
+  @estado        INT            1, 2 o 3
+  @ticket        NVARCHAR(250)  opcional
+  @dependencia   NVARCHAR(250)  opcional
+  @solicitud     NVARCHAR(250)  opcional
+  @prioridad     NVARCHAR(250)  opcional
+  @estadoTexto   NVARCHAR(250)  opcional
+  @registro      NVARCHAR(250)  opcional
+  @respuesta     NVARCHAR(250)  opcional
+  @responsables  NVARCHAR(250)  opcional
+SQL PAGINACION:
+  @OFFSET INT = (@pagina - 1) * @limite
+  @LIMITE INT = @limite
+*/
+
+/*
+GET /api/solicitudes-soporte/resumen
+GET /api/solicitudes-soporte/:id
+DELETE /api/solicitudes-soporte/:id
+JWT: @IDUSUARIO INT, @IDMESA INT
+RUTA: @ID INT
+*/
+
+/*
+POST /api/solicitudes-soporte
+CONTENT-TYPE: multipart/form-data
+JWT:
+  @IDUSUARIO INT
+  @IDMESA INT
+BODY:
+  @IDINCIDENTE  INT
+  @IDAREA       INT
+  @IDSEDE       INT
+  @PRIORIDAD    VARCHAR(30): BAJA | MEDIA | ALTA
+  @DESCRIPCION  VARCHAR(999)
+  @UBICACION    VARCHAR(500), opcional
+  @DIRECCION    VARCHAR(100), opcional
+  @ARCHIVO      VARCHAR(1000), URL/ruta del controlador actual o NULL
+*/
+
+/*
+PUT /api/solicitudes-soporte/:id
+JWT: @IDUSUARIO INT, @IDMESA INT
+RUTA: @ID INT
+BODY:
+  @IDINCIDENTE INT
+  @IDAREA INT
+  @IDSEDE INT
+  @PRIORIDAD VARCHAR(30)
+  @DESCRIPCION VARCHAR(999)
+  @UBICACION VARCHAR(500)
+REGLA: solo actualiza ESTADO = 1.
+*/
+
+/*
+GET /api/gestion-tickets
+JWT:
+  @IDUSUARIO INT
+  @IDMESA INT
+  @IDSOPORTE INT
+QUERY:
+  @pagina INT, @limite INT, @estado INT
+REGLA:
+  T.IDMESA = @IDMESA
+  T.IDSOPORTE = @IDSOPORTE
+  SOPORTESMESA.IDUSUARIO = @IDUSUARIO
+*/
+
+/*
+GET /api/gestion-tickets/resumen
+JWT: @IDUSUARIO INT, @IDMESA INT, @IDSOPORTE INT
+*/
+
+/*
+PATCH /api/gestion-tickets/:ticketId/estado
+JWT: @IDUSUARIO INT, @IDMESA INT, @IDSOPORTE INT
+RUTA:
+  @IDTICKET INT
+BODY:
+  @ESTADO       INT: 2 EN PROCESO | 3 SOLUCIONADO
+  @OBSERVACION  NVARCHAR(2000), obligatoria
+*/
+
+/*
+GET /api/administracion-tickets
+JWT: @IDMESA INT; requiere rol efectivo 1
+QUERY:
+  @pagina INT, @limite INT, @estado INT
+REGLA:
+  consulta todos los TICKETSMESA de @IDMESA, sin filtro IDSOPORTE.
+*/
+
+/*
+GET /api/administracion-tickets/resumen
+GET /api/administracion-tickets/soportes
+JWT: @IDMESA INT; requiere rol efectivo 1
+*/
+
+/*
+PATCH /api/administracion-tickets/:ticketId/asignacion
+JWT: @IDMESA INT; requiere rol efectivo 1
+RUTA:
+  @IDTICKET INT
+BODY:
+  @IDSOPORTE INT
+REGLA:
+  ticket y soporte deben pertenecer a @IDMESA.
+*/
+
+/*
+PATCH /api/administracion-tickets/:ticketId/estado
+JWT: @IDMESA INT; requiere rol efectivo 1
+RUTA:
+  @IDTICKET INT
+BODY:
+  @ESTADO       INT: 1, 2, 3 o 4
+  @OBSERVACION  NVARCHAR(2000), opcional
+*/
+
+/*
+GET /api/usuarios
+GET /api/usuarios/soporte/:mesa
+GET /api/mesas
+GET /api/areas
+GET /api/sedes
+GET /api/incidentes
+PARAMETROS:
+  /usuarios/soporte/:mesa -> @mesa INT
+Los demas endpoints de catalogo no reciben parametros SQL.
+*/
+
+/*
+GET /api/inventario
+QUERY:
+  @pagina INT, @limite INT
+POST /api/inventario
+PUT /api/inventario/:id
+BODY:
+  @NUMEROSERIE           VARCHAR(100), opcional
+  @CATEGORIA             VARCHAR(100)
+  @MARCA                 VARCHAR(100), opcional
+  @MODELO                VARCHAR(100), opcional
+  @PLACA                 VARCHAR(50), opcional
+  @DESCRIPCIONUBICACION  VARCHAR(MAX), opcional
+  @IDAREA                INT
+  @IDSEDE                INT
+  @IDMESA                INT
+DELETE /api/inventario/:id
+RUTA: @ID INT
+*/
+
+/*
+GET /api/mantenimientos
+QUERY:
+  @pagina INT, @limite INT, @anio INT, @sede INT
+POST /api/mantenimientos
+PUT /api/mantenimientos/:id
+BODY:
+  @IDACTIVO           INT
+  @TIPOMANTENIMIENTO  VARCHAR(50)
+  @FECHA              DATETIME2
+  @DESCRIPCION        VARCHAR(MAX), opcional
+  @DIAGNOSTICO        VARCHAR(MAX), opcional
+  @SOLUCION           VARCHAR(MAX), opcional
+  @RESPONSABLE        VARCHAR(100), opcional
+  @ESTADO             VARCHAR(30)
+PATCH /api/mantenimientos/:id/estado
+BODY: @ESTADO VARCHAR(30)
+DELETE /api/mantenimientos/:id
+RUTA: @ID INT
+*/
+
+/*
+GET /api/cronograma/inventarios
+QUERY:
+  @MES  INT: 1 a 12
+  @ANIO INT
+*/
+
+/*
+GET /api/conteos/inventarios
+QUERY:
+  sin parametros obligatorios.
+
+GET /api/conteos/mantenimientos
+QUERY:
+  @anio  INT, opcional
+  @sede  INT, opcional
+*/
+
+/*
+GET /api/conteo/usuario/:id/:mesa
+RUTA:
+  @id    INT, identificador del usuario
+  @mesa  INT, identificador de la mesa
+
+GET /api/conteo/diferencia
+GET /api/conteo/agrupaciones
+JWT:
+  @IDMESA INT
+
+GET /api/conteo/:id_rol/:mesa/:id_soporte
+RUTA:
+  @id_rol     INT
+  @mesa       INT
+  @id_soporte INT
+
+GET /api/conteo/:mesa
+RUTA:
+  @mesa INT
+
+NOTA:
+  Estas rutas son heredadas. Para nuevos desarrollos se recomienda obtener
+  usuario, mesa, rol y soporte exclusivamente desde el JWT, como ya hacen los
+  modulos Solicitud, Gestion y Administracion.
+*/
+
+/*
+GET /api/responsabilidades
+JWT: @IDMESA INT
+POST /api/responsabilidades
+PUT /api/responsabilidades/:id
+BODY:
+  @DESCRIPCION  VARCHAR(500)
+  @IDAREA       INT
+  @IDSOPORTE    INT
+  @FECHAINICIO  DATE
+  @FECHAFIN     DATE
+JWT:
+  @IDMESA INT
+DELETE /api/responsabilidades/:id
+RUTA: @ID INT
+*/
+
+/*==============================================================================
+  7. CONSULTAS DE VERIFICACION POSTERIORES A LA CREACION
+==============================================================================*/
+
+SELECT
+    t.name AS TABLA,
+    SUM(p.rows) AS REGISTROS
+FROM sys.tables t
+INNER JOIN sys.partitions p
+    ON p.object_id = t.object_id
+   AND p.index_id IN (0, 1)
+WHERE t.name IN (
+    'ROLESMESA',
+    'MESASAYUDA',
+    'SEDESCLB',
+    'AREASCLB',
+    'INCIDENTESMESA',
+    'USUARIOSMESA',
+    'SOPORTESMESA',
+    'TICKETSMESA',
+    'INVENTARIOSMESA',
+    'MANTENIMIENTOSMESA',
+    'RESPONSABILIDADES'
+)
+GROUP BY t.name
+ORDER BY t.name;
+GO
+
+SELECT
+    fk.name AS LLAVE_FORANEA,
+    OBJECT_NAME(fk.parent_object_id) AS TABLA_HIJA,
+    OBJECT_NAME(fk.referenced_object_id) AS TABLA_PADRE
+FROM sys.foreign_keys fk
+WHERE OBJECT_NAME(fk.parent_object_id) IN (
+    'AREASCLB',
+    'INCIDENTESMESA',
+    'USUARIOSMESA',
+    'SOPORTESMESA',
+    'TICKETSMESA',
+    'INVENTARIOSMESA',
+    'MANTENIMIENTOSMESA',
+    'RESPONSABILIDADES'
+)
+ORDER BY TABLA_HIJA, LLAVE_FORANEA;
+GO

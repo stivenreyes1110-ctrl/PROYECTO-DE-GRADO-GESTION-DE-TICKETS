@@ -1,0 +1,15 @@
+
+node_modules/
+dist/
+.vite/
+.env
+.env.*
+!.env.example
+*.log
+/papelera/
+/bk mesa de ayuda/uploads/*
+!/bk mesa de ayuda/uploads/TICS/
+!/bk mesa de ayuda/uploads/activos/
+/bk mesa de ayuda/uploads/TICS/*
+/bk mesa de ayuda/uploads/activos/*
+!**/uploads/*/.gitkeep
